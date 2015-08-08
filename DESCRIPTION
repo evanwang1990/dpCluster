@@ -1,14 +1,17 @@
 Package: dpCluster
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Clustering by fast search and find of density peaks
 Version: 0.1
 Date: 2015-07-14
-Author: Who wrote it
-Maintainer: Who to complain to <yourfault@somewhere.net>
-Description: More about what it does (maybe more than one line)
-License: What license is it under?
+Author: Evan Wang
+Maintainer: Evan Wang <evanwang1990@gmail.com>
+Description: this package can handle massive data in parallel way
+License: GPL
 LazyData: TRUE
-Imports: 
-    Rcpp (>= 0.11.6)
-LinkingTo: 
-    Rcpp
+Imports:
+    Rcpp (>= 0.11.6),
+    RcppParallel
+LinkingTo:
+    Rcpp,
+    RcppParallel
+SystermRequirements: GNU make

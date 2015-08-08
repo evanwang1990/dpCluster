@@ -56,50 +56,81 @@ List get_rho_delta(NumericMatrix data, String method = "neighbors", double perce
 }
 
 //[[Rcpp::export]]
-List dpCluter(List parameters, IntegerVector peaks)
+List dpCluster_cpp(List parameters, IntegerVector peaks, bool use_halo = true)
 {
   size_t size = parameters["size"];
-  double dc = parameters["dc"];
+  vector<int> cluster(size);
   NumericVector dist = parameters["dist"];
+  double dc = parameters["dc"];
   NumericVector rho = parameters["rho"];
   NumericVector delta = parameters["delta"];
   String method = parameters["method"];
 
-  vector<NodeDist> to_peak_dist(peaks.size());
-  vector<double> halo_max_rho(peaks.size(), R_NegInf);//max rho of halo in each cluster
-  vector<int> cluster(size);
-  int loc;
-
-
-  for(size_t i = 0; i < size; ++i)
+  if(!use_halo)
   {
-    if(method == "neighbors") dc = 1/rho[i];
-    for(size_t j = 0; j < peaks.size(); ++j)
+    double dist_temp;
+    for(size_t i = 0; i < size; ++i)
     {
-      loc = locate(i, peaks[j], size);
-      to_peak_dist[j].dist = loc == -1 ? 0:dist[locate(i, peaks[j], size)];
-      to_peak_dist[j].node = j;
+      double min_dist = R_PosInf;
+      for(size_t j = 0; j < peaks.size(); ++j)
+      {
+
+        dist_temp = peaks[j] == i ? 0:dist[locate(i, peaks[j], size)];
+        if(min_dist > dist_temp)
+        {
+          min_dist = dist_temp;
+          cluster[i] = j + 1;
+        }
+      }
     }
-    nth_element(to_peak_dist.begin(), to_peak_dist.begin() + 1, to_peak_dist.end(), Less);
-    cluster[i] = to_peak_dist[0].node;
-    if(to_peak_dist[1].dist - to_peak_dist[0].dist < dc)
-      halo_max_rho[cluster[i]] = max(halo_max_rho[cluster[i]], rho[i]);
-  }
 
-  for(size_t i = 0; i < size; ++i)
+    return List::create(
+      Named("peaks") = peaks,
+      Named("rho") = rho,
+      Named("delta") = delta,
+      Named("dc") = dc,
+      Named("method") = method,
+      Named("clusters") = cluster,
+      Named("halo") = NA_REAL
+    );
+  }
+  else
   {
-    if(rho[i] <= halo_max_rho[cluster[i]]) cluster[i] = -1;
-    else cluster[i] ++;
-  }
+    vector<NodeDist> to_peak_dist(peaks.size());
+    vector<double> halo_max_rho(peaks.size(), R_NegInf);//max rho of halo in each cluster
+    int loc;
 
-  return List::create(
-    Named("rho") = rho,
-    Named("delta") = delta,
-    Named("dc") = dc,
-    Named("method") = method,
-    Named("clusters") = cluster,
-    Named("halo") = halo_max_rho
-  );
+    for(size_t i = 0; i < size; ++i)
+    {
+      if(method == "neighbors") dc = 1/rho[i];
+      for(size_t j = 0; j < peaks.size(); ++j)
+      {
+        loc = locate(i, peaks[j], size);
+        to_peak_dist[j].dist = loc == -1 ? 0:dist[loc];
+        to_peak_dist[j].node = j;
+      }
+      nth_element(to_peak_dist.begin(), to_peak_dist.begin() + 1, to_peak_dist.end(), Less);
+      cluster[i] = to_peak_dist[0].node;
+      if(to_peak_dist[1].dist - to_peak_dist[0].dist < dc)
+        halo_max_rho[cluster[i]] = max(halo_max_rho[cluster[i]], rho[i]);
+    }
+
+    for(size_t i = 0; i < size; ++i)
+    {
+      if(rho[i] <= halo_max_rho[cluster[i]]) cluster[i] = -1;
+      else cluster[i] ++;
+    }
+
+    return List::create(
+      Named("peaks") = peaks,
+      Named("rho") = rho,
+      Named("delta") = delta,
+      Named("dc") = dc,
+      Named("method") = method,
+      Named("clusters") = cluster,
+      Named("halo") = halo_max_rho
+    );
+  }
 }
 
 NumericVector Dist(const NumericMatrix &data)
