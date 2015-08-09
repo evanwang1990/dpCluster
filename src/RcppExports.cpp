@@ -6,16 +6,18 @@
 using namespace Rcpp;
 
 // get_rho_delta
-List get_rho_delta(NumericMatrix data, String method, double percent, int threads);
-RcppExport SEXP dpCluster_get_rho_delta(SEXP dataSEXP, SEXP methodSEXP, SEXP percentSEXP, SEXP threadsSEXP) {
+List get_rho_delta(NumericMatrix data, String similarity, String method, double percent, int threads, double SNN_percent);
+RcppExport SEXP dpCluster_get_rho_delta(SEXP dataSEXP, SEXP similaritySEXP, SEXP methodSEXP, SEXP percentSEXP, SEXP threadsSEXP, SEXP SNN_percentSEXP) {
 BEGIN_RCPP
     Rcpp::RObject __result;
     Rcpp::RNGScope __rngScope;
     Rcpp::traits::input_parameter< NumericMatrix >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< String >::type similarity(similaritySEXP);
     Rcpp::traits::input_parameter< String >::type method(methodSEXP);
     Rcpp::traits::input_parameter< double >::type percent(percentSEXP);
     Rcpp::traits::input_parameter< int >::type threads(threadsSEXP);
-    __result = Rcpp::wrap(get_rho_delta(data, method, percent, threads));
+    Rcpp::traits::input_parameter< double >::type SNN_percent(SNN_percentSEXP);
+    __result = Rcpp::wrap(get_rho_delta(data, similarity, method, percent, threads, SNN_percent));
     return __result;
 END_RCPP
 }
@@ -29,6 +31,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< IntegerVector >::type peaks(peaksSEXP);
     Rcpp::traits::input_parameter< bool >::type use_halo(use_haloSEXP);
     __result = Rcpp::wrap(dpCluster_cpp(parameters, peaks, use_halo));
+    return __result;
+END_RCPP
+}
+// SNN
+NumericVector SNN(const NumericVector dist, const int size, const double percent);
+RcppExport SEXP dpCluster_SNN(SEXP distSEXP, SEXP sizeSEXP, SEXP percentSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject __result;
+    Rcpp::RNGScope __rngScope;
+    Rcpp::traits::input_parameter< const NumericVector >::type dist(distSEXP);
+    Rcpp::traits::input_parameter< const int >::type size(sizeSEXP);
+    Rcpp::traits::input_parameter< const double >::type percent(percentSEXP);
+    __result = Rcpp::wrap(SNN(dist, size, percent));
     return __result;
 END_RCPP
 }

@@ -32,6 +32,7 @@ dpCluster <- function(x,
                       percent = 0.01,
                       thres.rho = NULL,
                       thres.delta = NULL,
+                      similarity = c("euclidean", "SNN"),
                       method = c("gaussian", "withinDc", "neighbors"),
                       threads = 4,
                       halo.detection = TRUE)
@@ -39,9 +40,10 @@ dpCluster <- function(x,
   if(!is.data.frame(x) && !is.matrix(x)) stop("x is not a data.frame or a matrix!\n")
   if(is.data.frame(x)) x <- as.matrix(x)
   method <- match.arg(method)
+  similarity <- match.arg(similarity)
   threads <- min(threads, defaultNumThreads())
 
-  params <- get_rho_delta(data = x, method = method, percent = percent, threads = threads)
+  params <- get_rho_delta(data = x, similarity = similarity, method = method, percent = percent, threads = threads)
 
   while(is.null(thres.rho) || is.null(thres.delta))
   {
@@ -58,6 +60,8 @@ dpCluster <- function(x,
 
   if(length(peaks) == 1) stop("there's only one cluster!\n")
   res <- dpCluster_cpp(parameters = params, peaks = peaks - 1, use_halo = halo.detection)
+
+  res$peaks <- res$peaks + 1
   class(res) <- c("partition", "dpCluster")
   res
 }

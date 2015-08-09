@@ -5,8 +5,8 @@
 \title{dpCluster}
 \usage{
 dpCluster(x, percent = 0.01, thres.rho = NULL, thres.delta = NULL,
-  method = c("gaussian", "withinDc", "neighbors"), threads = 4,
-  halo.detection = TRUE)
+  similarity = c("euclidean", "SNN"), method = c("gaussian", "withinDc",
+  "neighbors"), threads = 4, halo.detection = TRUE)
 }
 \arguments{
 \item{x}{data.frame or matrix}

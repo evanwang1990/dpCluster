@@ -54,20 +54,65 @@ struct parallelDist: public Worker
   }
 };
 
+struct parallelSNN: public Worker
+{
+  const RVector<double> dist;
+  const int size;
+  const int k;
+  RMatrix<int> k_neighbors;
+
+  parallelSNN(const NumericVector dist, const int size, const int k, IntegerMatrix k_neighbors)
+    : dist(dist), size(size), k(k), k_neighbors(k_neighbors) {};
+
+  void operator()(size_t begin, size_t end)
+  {
+    vector<NodeDist> dist_(size - 1);
+    for(size_t i = begin; i < end; ++i)
+    {
+      vector<NodeDist>::iterator pt = dist_.begin();
+      for(size_t j = 0; j < size; ++j)
+      {
+        if(i != j)
+        {
+          pt->node = j;
+          pt->dist = dist[locate(i, j, size)];
+          ++pt;
+        }
+      }
+
+      nth_element(dist_.begin(), dist_.begin() + k - 1, dist_.end(), Less);
+
+      for(size_t n = 0; n < k; ++n)
+      {
+        k_neighbors(i, n) = dist_[n].node;
+      }
+    }
+  }
+};
+
 struct parallelgetDc: public Worker
 {
   RVector<double> dist;
   const size_t grainSize;
   const size_t k;
+  const bool Less;
   RVector<double> kmins;
 
-  parallelgetDc(NumericVector dist, const size_t grainSize, const size_t k, NumericVector kmins)
-    : dist(dist), grainSize(grainSize), k(k), kmins(kmins) {}
+  parallelgetDc(NumericVector dist, const size_t grainSize, const size_t k, const bool Less, NumericVector kmins)
+    : dist(dist), grainSize(grainSize), k(k), Less(Less), kmins(kmins) {}
 
   void operator()(size_t begin, size_t end)
   {
     int iter = floor(double(begin)/ (grainSize - 1));
-    nth_element(dist.begin()+begin, dist.begin()+begin+k, dist.begin()+end, less<double>());
+    if(Less)
+    {
+      nth_element(dist.begin()+begin, dist.begin()+begin+k, dist.begin()+end, less<double>());
+    }
+    else
+    {
+      nth_element(dist.begin()+begin, dist.begin()+begin+k, dist.begin()+end, greater<double>());
+    }
+
     copy(dist.begin() + begin, dist.begin()+begin+k, kmins.begin()+iter*k);
   }
 };

@@ -9,14 +9,16 @@ using namespace RcppParallel;
 
 NumericVector Dist(const NumericMatrix &data);
 pair<size_t, int> get_grainSize(const size_t size, double percent, const int threads);
-double getDc(const NumericVector &dist, double percent, const int threads);
+double getDc(const NumericVector &dist, double percent, const int threads, bool Less);
 void getRho_withinDc(const NumericVector &dist, const size_t size, const double dc, NumericVector &rho);
 void getRho_neighbors(const NumericVector &dist, const size_t size, const double percent, NumericVector &rho);
 void getRho_gaussian(const NumericVector &dist, const size_t size, const double dc, NumericVector &rho);
 void getDelta(const NumericVector &dist, const NumericVector &rho, size_t size, NumericVector &delta);
+inline int shared_neighbors(IntegerMatrix::Row neighbor1, IntegerMatrix::Row neighbor2);
+NumericVector SNN(const NumericVector dist, const int size, const double percent);
 
 //[[Rcpp::export]]
-List get_rho_delta(NumericMatrix data, String method = "neighbors", double percent = 0.01, int threads = 4)
+List get_rho_delta(NumericMatrix data, String similarity = "euclidean", String method = "neighbors", double percent = 0.01, int threads = 4, double SNN_percent = 0.1)
 {
   size_t size = data.nrow();
   NumericVector rho(size, 0.0);
@@ -25,22 +27,28 @@ List get_rho_delta(NumericMatrix data, String method = "neighbors", double perce
 
   //calculate the distance
   NumericVector dist = Dist(data);
+  NumericVector similarity_ = dist;
+  if(similarity == "SNN")
+  {
+    similarity = SNN(dist, size, SNN_percent);
+  }
 
   //calculate rho and delta
   if(method == "neighbors")
   {
-    getRho_neighbors(dist, size, percent, rho);
+    getRho_neighbors(similarity_, size, percent, rho);
   }
   else
   {
-    dc = getDc(dist, percent, threads);
+    if(similarity == "SNN") dc = getDc(similarity_, percent, threads, false);
+    else dc = getDc(similarity_, percent, threads, true);
     if(method == "withinDc")
     {
-      getRho_withinDc(dist, size, dc, rho);
+      getRho_withinDc(similarity_, size, dc, rho);
     }
     else
     {
-      getRho_gaussian(dist, size, dc, rho);
+      getRho_gaussian(similarity_, size, dc, rho);
     }
   }
 
@@ -90,7 +98,7 @@ List dpCluster_cpp(List parameters, IntegerVector peaks, bool use_halo = true)
       Named("delta") = delta,
       Named("dc") = dc,
       Named("method") = method,
-      Named("clusters") = cluster,
+      Named("clustering") = cluster,
       Named("halo") = NA_REAL
     );
   }
@@ -127,7 +135,7 @@ List dpCluster_cpp(List parameters, IntegerVector peaks, bool use_halo = true)
       Named("delta") = delta,
       Named("dc") = dc,
       Named("method") = method,
-      Named("clusters") = cluster,
+      Named("clustering") = cluster,
       Named("halo") = halo_max_rho
     );
   }
@@ -161,7 +169,7 @@ pair<size_t, int> get_grainSize(const size_t size, double percent, const int thr
   return(make_pair(grainSize, iter));
 }
 
-double getDc(const NumericVector &dist, double percent, const int threads)
+double getDc(const NumericVector &dist, double percent, const int threads, bool Less = true)
 {
   size_t k = percent * dist.size();
   NumericVector x = clone(dist);
@@ -172,7 +180,7 @@ double getDc(const NumericVector &dist, double percent, const int threads)
         break;
       NumericVector res(grainSize.second * threads * k);
 
-      parallelgetDc parallelgetDc(x, grainSize.first, k, res);
+      parallelgetDc parallelgetDc(x, grainSize.first, k, Less, res);
       parallelFor(0, x.size(), parallelgetDc, grainSize.first);
       x = res;
 
@@ -251,3 +259,65 @@ void getDelta(const NumericVector &dist, const NumericVector &rho, size_t size, 
   }
 }
 
+//[[Rcpp::export]]
+NumericVector SNN(const NumericVector dist,
+                  const int size,
+                  const double percent)
+{
+  size_t k = percent * size;
+  NumericVector SNN(dist.size());
+  if(k < 10)
+  {
+    cout<<"The number of neighbors is less than 10!"<<endl;
+    return SNN;
+  }
+  IntegerMatrix k_neighbors(size, k);
+  vector<NodeDist> dist_(size - 1);
+  for(size_t i = 0; i < size; ++i)
+  {
+    vector<NodeDist>::iterator pt = dist_.begin();
+    for(size_t j = 0; j < size; ++j)
+    {
+      if(i != j)
+      {
+        pt->node = j;
+        pt->dist = dist[locate(i, j, size)];
+        ++pt;
+      }
+    }
+
+    nth_element(dist_.begin(), dist_.begin() + k - 1, dist_.end(), Less);
+
+    for(size_t n = 0; n < k; ++n)
+    {
+      k_neighbors(i, n) = dist_[n].node;
+    }
+  }
+
+  for(size_t i = 0; i < size; ++i)
+  {
+    for(size_t j = i + 1; j < size; ++j)
+    {
+      SNN[locate(i, j, size)] = shared_neighbors(k_neighbors.row(i), k_neighbors.row(j));
+    }
+  }
+
+  return SNN;
+}
+
+inline int shared_neighbors(IntegerMatrix::Row neighbor1, IntegerMatrix::Row neighbor2)
+{
+  int match_n = 0;
+  for(size_t i = 0; i < neighbor1.size(); ++i)
+  {
+    for(size_t j = 0; j < neighbor2.size(); ++j)
+    {
+      if(neighbor1[i] == neighbor2[j])
+      {
+        match_n ++;
+        break;
+      }
+    }
+  }
+  return match_n;
+}
